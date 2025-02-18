@@ -193,19 +193,75 @@ const App = () => {
     return Math.atan2(dy, dx) * 180 / Math.PI;
   };
 
+  // const handleMouseDown = (e: React.MouseEvent, sticker: Sticker, mode: HandleMode = 'move') => {
+  //   e.stopPropagation();
+  //   const rect = containerRef.current?.getBoundingClientRect();
+  //   if (!rect) return;
+
+  //   setSelectedSticker(sticker);
+
+  //   switch (mode) {
+  //     case 'rotate':
+  //       setIsRotating(true);
+  //       setInitialRotation(sticker.rotation);
+  //       const centerX = rect.left + sticker.x;
+  //       const centerY = rect.top + sticker.y;
+  //       setDragOffset({
+  //         centerX,
+  //         centerY,
+  //         initialAngle: getAngle(centerX, centerY, e.clientX, e.clientY) - sticker.rotation
+  //       });
+  //       break;
+  //     case 'scale':
+  //       setIsScaling(true);
+  //       setInitialScale(sticker.scale);
+  //       setDragOffset({
+  //         initialY: e.clientY,
+  //         initialScale: sticker.scale
+  //       });
+  //       break;
+  //     default:
+  //       setIsDragging(true);
+  //       setDragOffset({
+  //         x: e.clientX - sticker.x,
+  //         y: e.clientY - sticker.y
+  //       });
+  //   }
+  // };
+
+  // const handleMouseMove = (e: React.MouseEvent) => {
+  //   if (!selectedSticker || !containerRef.current) return;
+
+  //   const rect = containerRef.current.getBoundingClientRect();
+  //   const updatedSticker = { ...selectedSticker };
+
+  //   if (isDragging && dragOffset.x !== undefined && dragOffset.y !== undefined) {
+  //     updatedSticker.x = e.clientX - dragOffset.x;
+  //     updatedSticker.y = e.clientY - dragOffset.y;
+  //   } else if (isRotating && dragOffset.centerX !== undefined && dragOffset.centerY !== undefined) {
+  //     const currentAngle = getAngle(dragOffset.centerX, dragOffset.centerY, e.clientX, e.clientY);
+  //     updatedSticker.rotation = currentAngle - (dragOffset.initialAngle ?? 0);
+  //   } else if (isScaling && dragOffset.initialY !== undefined && dragOffset.initialScale !== undefined) {
+  //     const scaleDelta = (dragOffset.initialY - e.clientY) / 100;
+  //     updatedSticker.scale = Math.max(0.5, Math.min(3, dragOffset.initialScale + scaleDelta));
+  //   }
+
+  //   setStickers(stickers.map(s => s.id === selectedSticker.id ? updatedSticker : s));
+  // };
   const handleMouseDown = (e: React.MouseEvent, sticker: Sticker, mode: HandleMode = 'move') => {
     e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-
+  
     setSelectedSticker(sticker);
-
+  
     switch (mode) {
       case 'rotate':
         setIsRotating(true);
         setInitialRotation(sticker.rotation);
-        const centerX = rect.left + sticker.x;
-        const centerY = rect.top + sticker.y;
+  
+        const centerX = rect.left + sticker.x + 0.5 * sticker.scale * 24; // Adjust centerX based on scaling and size
+        const centerY = rect.top + sticker.y + 0.5 * sticker.scale * 24; // Adjust centerY based on scaling and size
         setDragOffset({
           centerX,
           centerY,
@@ -228,13 +284,13 @@ const App = () => {
         });
     }
   };
-
+  
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!selectedSticker || !containerRef.current) return;
-
+  
     const rect = containerRef.current.getBoundingClientRect();
     const updatedSticker = { ...selectedSticker };
-
+  
     if (isDragging && dragOffset.x !== undefined && dragOffset.y !== undefined) {
       updatedSticker.x = e.clientX - dragOffset.x;
       updatedSticker.y = e.clientY - dragOffset.y;
@@ -245,9 +301,10 @@ const App = () => {
       const scaleDelta = (dragOffset.initialY - e.clientY) / 100;
       updatedSticker.scale = Math.max(0.5, Math.min(3, dragOffset.initialScale + scaleDelta));
     }
-
+  
     setStickers(stickers.map(s => s.id === selectedSticker.id ? updatedSticker : s));
   };
+  
 
   const handleMouseUp = () => {
     if (selectedSticker) {
