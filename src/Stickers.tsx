@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, RotateCw, RotateCcw, Image as ImageIcon, Sticker } from 'lucide-react';
+import { Trash2, RotateCw, RotateCcw, Image as ImageIcon } from 'lucide-react';
 
-// Types
 interface StickerType {
   id: string;
   x: number;
@@ -16,27 +15,15 @@ interface Action {
   sticker: StickerType;
 }
 
-interface Position {
-  x: number;
-  y: number;
-}
-
-// Available stickers
+const STICKER_OPTIONS = [
+  '/api/placeholder/64/64',
+  '/api/placeholder/64/64',
+  '/api/placeholder/64/64',
+];
 const STICKER_OPTIONS_IMG = [
   '/love.webp',
   '/love-vector.svg',
   // '/api/placeholder/64/64',
-];
-
-const STICKER_OPTIONS = [
-  '😊', '❤️', '🌟', '🎉', '👍', '🔥',
-  '🌈', '🎨', '🎭', '🎪', '🎯', '🎲',
-  '🌺', '🍕', '🎸', '🎮', '📸', '🎪'
-];
-const STICKER_OPTIONSp = [
-  '/api/placeholder/64/64',
-  '/api/placeholder/64/64',
-  '/api/placeholder/64/64',
 ];
 
 const StickerEditor: React.FC = () => {
@@ -46,12 +33,13 @@ const StickerEditor: React.FC = () => {
   const [undoStack, setUndoStack] = useState<Action[]>([]);
   const [redoStack, setRedoStack] = useState<Action[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  
-  const containerRef = useRef<HTMLDivElement>(null);
-  const initialTouchRef = useRef<{ x: number; y: number; angle: number; distance: number } | null>(null);
-  const initialMouseRef = useRef<Position | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
 
-  // Handle image upload
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stickerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const initialRotationRef = useRef<number>(0);
+  const currentStickerRotation = useRef<number>(0);
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -63,7 +51,6 @@ const StickerEditor: React.FC = () => {
     }
   };
 
-  // Add sticker
   const addSticker = (url: string) => {
     const newSticker: StickerType = {
       id: Math.random().toString(36).substr(2, 9),
@@ -73,429 +60,146 @@ const StickerEditor: React.FC = () => {
       scale: 1,
       url,
     };
-    
-    const action: Action = { type: 'ADD', sticker: newSticker };
+
     setStickers([...stickers, newSticker]);
-    setUndoStack([...undoStack, action]);
+    setUndoStack([...undoStack, { type: 'ADD', sticker: newSticker }]);
     setRedoStack([]);
   };
 
-  // Delete sticker
   const deleteSticker = (id: string) => {
     const stickerToDelete = stickers.find(s => s.id === id);
     if (stickerToDelete) {
-      const action: Action = { type: 'DELETE', sticker: stickerToDelete };
       setStickers(stickers.filter(s => s.id !== id));
-      setUndoStack([...undoStack, action]);
+      setUndoStack([...undoStack, { type: 'DELETE', sticker: stickerToDelete }]);
       setRedoStack([]);
       setSelectedSticker(null);
     }
   };
 
-  // Mouse Events
-  const handleMouseDown = (event: React.MouseEvent, id: string) => {
-    event.preventDefault();
-    setSelectedSticker(id);
-    setIsDragging(true);
-    initialMouseRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
+  // Calculate angle between two points
+  const getAngle = (cx: number, cy: number, ex: number, ey: number) => {
+    const dy = ey - cy;
+    const dx = ex - cx;
+    const rad = Math.atan2(dy, dx);
+    return rad * 180 / Math.PI;
   };
 
-  const handleMouseMove = (event: React.MouseEvent) => {
-    event.preventDefault();
-    if (!isDragging || !selectedSticker || !initialMouseRef.current) return;
-
-    const sticker = stickers.find(s => s.id === selectedSticker);
-    if (!sticker) return;
-
-    const deltaX = event.clientX - initialMouseRef.current.x;
-    const deltaY = event.clientY - initialMouseRef.current.y;
-
-    const updatedSticker = {
-      ...sticker,
-      x: sticker.x + deltaX,
-      y: sticker.y + deltaY,
-    };
-
-    setStickers(stickers.map(s => 
-      s.id === selectedSticker ? updatedSticker : s
-    ));
-
-    initialMouseRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-    };
-  };
-
-  const handleMouseUp = () => {
-    if (selectedSticker && isDragging) {
-      const sticker = stickers.find(s => s.id === selectedSticker);
-      if (sticker) {
-        const action: Action = { type: 'MOVE', sticker };
-        setUndoStack([...undoStack, action]);
-        setRedoStack([]);
-      }
-    }
-    setIsDragging(false);
-    initialMouseRef.current = null;
-  };
-
-  // Handle touch start
-  const handleTouchStart = (event: React.TouchEvent, id: string) => {
-    event.preventDefault();
-    setSelectedSticker(id);
-    
-    if (event.touches.length === 2) {
-      const touch1 = event.touches[0];
-      const touch2 = event.touches[1];
-      
-      const angle = Math.atan2(
-        touch2.clientY - touch1.clientY,
-        touch2.clientX - touch1.clientX
-      );
-      
-      const distance = Math.hypot(
-        touch2.clientX - touch1.clientX,
-        touch2.clientY - touch1.clientY
-      );
-
-      initialTouchRef.current = {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2,
-        angle,
-        distance,
-      };
-    } else {
-      initialTouchRef.current = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-        angle: 0,
-        distance: 0,
-      };
-    }
-  };
-
-  // Handle touch move
-  const handleTouchMove = (event: React.TouchEvent) => {
-    event.preventDefault();
-    if (!selectedSticker || !initialTouchRef.current) return;
-
-    const sticker = stickers.find(s => s.id === selectedSticker);
-    if (!sticker) return;
-
-    if (event.touches.length === 2) {
-      // Handle rotation and scaling
-      const touch1 = event.touches[0];
-      const touch2 = event.touches[1];
-      
-      const angle = Math.atan2(
-        touch2.clientY - touch1.clientY,
-        touch2.clientX - touch1.clientX
-      );
-      
-      const distance = Math.hypot(
-        touch2.clientX - touch1.clientX,
-        touch2.clientY - touch1.clientY
-      );
-
-      const deltaAngle = angle - initialTouchRef.current.angle;
-      const deltaScale = distance / initialTouchRef.current.distance;
-
-      const updatedSticker = {
-        ...sticker,
-        rotation: sticker.rotation + (deltaAngle * 180) / Math.PI,
-        scale: sticker.scale * deltaScale,
-      };
-
-      setStickers(stickers.map(s => 
-        s.id === selectedSticker ? updatedSticker : s
-      ));
-      
-      initialTouchRef.current = {
-        ...initialTouchRef.current,
-        angle,
-        distance,
-      };
-    } else {
-      // Handle movement
-      const touch = event.touches[0];
-      const deltaX = touch.clientX - initialTouchRef.current.x;
-      const deltaY = touch.clientY - initialTouchRef.current.y;
-
-      const updatedSticker = {
-        ...sticker,
-        x: sticker.x + deltaX,
-        y: sticker.y + deltaY,
-      };
-
-      setStickers(stickers.map(s => 
-        s.id === selectedSticker ? updatedSticker : s
-      ));
-      
-      initialTouchRef.current = {
-        ...initialTouchRef.current,
-        x: touch.clientX,
-        y: touch.clientY,
-      };
-    }
-  };
-
-  // Handle touch end
-  const handleTouchEnd = () => {
-    if (selectedSticker) {
-      const sticker = stickers.find(s => s.id === selectedSticker);
-      if (sticker) {
-        const action: Action = { type: 'MOVE', sticker };
-        setUndoStack([...undoStack, action]);
-        setRedoStack([]);
-      }
-    }
-    setSelectedSticker(null);
-    initialTouchRef.current = null;
-  };
-
-  // Clean up event listeners
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      handleMouseUp();
-    };
-
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [selectedSticker, stickers]);
-
-  // Undo function
-  const undo = () => {
-    if (undoStack.length === 0) return;
-    
-    const action = undoStack[undoStack.length - 1];
-    setUndoStack(undoStack.slice(0, -1));
-    
-    switch (action.type) {
-      case 'ADD':
-        setStickers(stickers.filter(s => s.id !== action.sticker.id));
-        break;
-      case 'DELETE':
-        setStickers([...stickers, action.sticker]);
-        break;
-      case 'MOVE':
-      case 'ROTATE':
-      case 'SCALE':
-        setStickers(stickers.map(s => 
-          s.id === action.sticker.id ? action.sticker : s
-        ));
-        break;
-    }
-    
-    setRedoStack([...redoStack, action]);
-  };
-
-  // Redo function
-  const redo = () => {
-    if (redoStack.length === 0) return;
-    
-    const action = redoStack[redoStack.length - 1];
-    setRedoStack(redoStack.slice(0, -1));
-    
-    switch (action.type) {
-      case 'ADD':
-        setStickers([...stickers, action.sticker]);
-        break;
-      case 'DELETE':
-        setStickers(stickers.filter(s => s.id !== action.sticker.id));
-        break;
-      case 'MOVE':
-      case 'ROTATE':
-      case 'SCALE':
-        setStickers(stickers.map(s => 
-          s.id === action.sticker.id ? action.sticker : s
-        ));
-        break;
-    }
-    
-    setUndoStack([...undoStack, action]);
-  };
-
-  const [isRotating, setIsRotating] = useState(false);
-  
-  const initialRotationRef = useRef<number>(0);
-  const initialScaleRef = useRef<number>(1);
-  const stickerRef = useRef<HTMLDivElement>(null);
-
-  // Calculate rotation angle from mouse position
-  const calculateRotation = (event: React.MouseEvent | MouseEvent): number => {
-    if (!stickerRef.current) return 0;
-    
-    const stickerRect = stickerRef.current.getBoundingClientRect();
-    const stickerCenterX = stickerRect.left + stickerRect.width / 2;
-    const stickerCenterY = stickerRect.top + stickerRect.height / 2;
-    
-    const angle = Math.atan2(
-      event.clientY - stickerCenterY,
-      event.clientX - stickerCenterX
-    ) * (180 / Math.PI);
-    
-    return angle;
-  };
-
-  // Mouse wheel handler for scaling
-  const handleWheel = (event: React.WheelEvent) => {
-    event.preventDefault();
-    if (!selectedSticker) return;
-
-    const sticker = stickers.find(s => s.id === selectedSticker);
-    if (!sticker) return;
-
-    const scaleFactor = event.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = sticker.scale * scaleFactor;
-
-    // Limit scale range
-    if (newScale < 0.2 || newScale > 5) return;
-
-    const updatedSticker = {
-      ...sticker,
-      scale: newScale
-    };
-
-    setStickers(stickers.map(s => 
-      s.id === selectedSticker ? updatedSticker : s
-    ));
-
-    // Add to undo stack after a short delay
-    clearTimeout(initialScaleRef.current as unknown as number);
-    initialScaleRef.current = setTimeout(() => {
-      const action: Action = { type: 'SCALE', sticker: updatedSticker };
-      setUndoStack([...undoStack, action]);
-      setRedoStack([]);
-    }, 500) as unknown as number;
-  };
-
-  // Rotation handle mouse down
-  const handleRotateStart = (event: React.MouseEvent) => {
-    event.preventDefault();
+  // Handle rotation start
+  const handleRotateStart = (event: React.MouseEvent, id: string) => {
     event.stopPropagation();
     setIsRotating(true);
-    initialRotationRef.current = calculateRotation(event);
+    setSelectedSticker(id);
+
+    const stickerElement = stickerRefs.current[id];
+    if (!stickerElement) return;
+
+    const rect = stickerElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    initialRotationRef.current = getAngle(centerX, centerY, event.clientX, event.clientY);
+    const sticker = stickers.find(s => s.id === id);
+    currentStickerRotation.current = sticker?.rotation || 0;
   };
 
-  // Rotation handle mouse move
+  // Handle rotation move
   const handleRotateMove = (event: MouseEvent) => {
     if (!isRotating || !selectedSticker) return;
 
-    const sticker = stickers.find(s => s.id === selectedSticker);
-    if (!sticker) return;
+    const stickerElement = stickerRefs.current[selectedSticker];
+    if (!stickerElement) return;
 
-    const currentAngle = calculateRotation(event);
+    const rect = stickerElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const currentAngle = getAngle(centerX, centerY, event.clientX, event.clientY);
     const deltaAngle = currentAngle - initialRotationRef.current;
 
-    const updatedSticker = {
-      ...sticker,
-      rotation: sticker.rotation + deltaAngle
-    };
+    const newRotation = currentStickerRotation.current + deltaAngle;
 
-    setStickers(stickers.map(s => 
-      s.id === selectedSticker ? updatedSticker : s
+    setStickers(stickers.map(sticker =>
+      sticker.id === selectedSticker
+        ? { ...sticker, rotation: newRotation }
+        : sticker
     ));
-
-    initialRotationRef.current = currentAngle;
   };
 
-  // Rotation handle mouse up
+  // Handle rotation end
   const handleRotateEnd = () => {
     if (isRotating && selectedSticker) {
       const sticker = stickers.find(s => s.id === selectedSticker);
       if (sticker) {
-        const action: Action = { type: 'ROTATE', sticker };
-        setUndoStack([...undoStack, action]);
+        setUndoStack([...undoStack, { type: 'ROTATE', sticker }]);
         setRedoStack([]);
       }
     }
     setIsRotating(false);
   };
 
-  // Add global mouse move and up listeners for rotation
+  // Handle sticker movement
+  const handleMouseDown = (event: React.MouseEvent, id: string) => {
+    if (isRotating) return;
+    event.preventDefault();
+    setSelectedSticker(id);
+    setIsDragging(true);
+
+    const sticker = stickers.find(s => s.id === id);
+    if (!sticker) return;
+
+    const rect = stickerRefs.current[id]?.getBoundingClientRect();
+    if (!rect) return;
+
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDragging) return;
+
+      const newX = moveEvent.clientX - offsetX;
+      const newY = moveEvent.clientY - offsetY;
+
+      setStickers(stickers.map(s =>
+        s.id === id
+          ? { ...s, x: newX, y: newY }
+          : s
+      ));
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        const updatedSticker = stickers.find(s => s.id === id);
+        if (updatedSticker) {
+          setUndoStack([...undoStack, { type: 'MOVE', sticker: updatedSticker }]);
+          setRedoStack([]);
+        }
+      }
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Add global event listeners for rotation
   useEffect(() => {
-    const handleGlobalMouseMove = (event: MouseEvent) => {
-      handleRotateMove(event);
-    };
-
-    const handleGlobalMouseUp = () => {
-      handleRotateEnd();
-    };
-
     if (isRotating) {
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('mousemove', handleRotateMove);
+      document.addEventListener('mouseup', handleRotateEnd);
     }
-
     return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('mousemove', handleRotateMove);
+      document.removeEventListener('mouseup', handleRotateEnd);
     };
   }, [isRotating, selectedSticker]);
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!selectedSticker) return;
+  const handleRef = (el, sticker) => {
+    stickerRefs.current[sticker.id] = el
+    console.log('sticker', sticker)
+  }
 
-      const sticker = stickers.find(s => s.id === selectedSticker);
-      if (!sticker) return;
-
-      let updatedSticker = { ...sticker };
-      let needsUpdate = false;
-
-      switch (event.key) {
-        case 'ArrowLeft':
-          updatedSticker.rotation -= event.shiftKey ? 15 : 1;
-          needsUpdate = true;
-          break;
-        case 'ArrowRight':
-          updatedSticker.rotation += event.shiftKey ? 15 : 1;
-          needsUpdate = true;
-          break;
-        case '+':
-        case '=':
-          updatedSticker.scale *= 1.1;
-          if (updatedSticker.scale > 5) updatedSticker.scale = 5;
-          needsUpdate = true;
-          break;
-        case '-':
-        case '_':
-          updatedSticker.scale *= 0.9;
-          if (updatedSticker.scale < 0.2) updatedSticker.scale = 0.2;
-          needsUpdate = true;
-          break;
-      }
-
-      if (needsUpdate) {
-        event.preventDefault();
-        setStickers(stickers.map(s => 
-          s.id === selectedSticker ? updatedSticker : s
-        ));
-
-        // Add to undo stack after a short delay
-        clearTimeout(initialScaleRef.current as unknown as number);
-        initialScaleRef.current = setTimeout(() => {
-          const action: Action = { 
-            type: event.key.includes('Arrow') ? 'ROTATE' : 'SCALE', 
-            sticker: updatedSticker 
-          };
-          setUndoStack([...undoStack, action]);
-          setRedoStack([]);
-        }, 500) as unknown as number;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedSticker, stickers]);
 
   return (
     <div className="editor-container">
@@ -509,68 +213,26 @@ const StickerEditor: React.FC = () => {
           />
           <ImageIcon />
         </label>
-        
-        <button onClick={undo} disabled={undoStack.length === 0}>
-          <RotateCcw />
-        </button>
-        
-        <button onClick={redo} disabled={redoStack.length === 0}>
-          <RotateCw />
-        </button>
       </div>
 
-      {/* <div 
+      <div
         ref={containerRef}
         className="canvas-container"
-        style={{ backgroundImage: `url(${backgroundImage})` }}
+        style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none' }}
       >
         {stickers.map((sticker) => (
           <div
             key={sticker.id}
+            // ref={el => stickerRefs.current[sticker.id] = el}
+            ref={(el) => handleRef(el, sticker)}
             className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
             style={{
-              transform: `translate(${sticker.x}px, ${sticker.y}px) 
-                         rotate(${sticker.rotation}deg) 
-                         scale(${sticker.scale})`,
+              transform: `translate(${sticker.x}px, ${sticker.y}px) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
+              position: 'absolute',
             }}
             onMouseDown={(e) => handleMouseDown(e, sticker.id)}
-            onMouseMove={handleMouseMove}
-            onTouchStart={(e) => handleTouchStart(e, sticker.id)}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
           >
-            <img src={sticker.url} alt="sticker" />
-            {selectedSticker === sticker.id && (
-              <button
-                className="delete-button"
-                onClick={() => deleteSticker(sticker.id)}
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
-      </div> */}
-      <div 
-        ref={containerRef}
-        className="canvas-container"
-        style={{ backgroundImage: `url(${backgroundImage})` }}
-      >
-        {stickers.map((sticker) => (
-          <div
-            key={sticker.id}
-            ref={selectedSticker === sticker.id ? stickerRef : null}
-            className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
-            style={{
-              transform: `translate(${sticker.x}px, ${sticker.y}px) 
-                         rotate(${sticker.rotation}deg) 
-                         scale(${sticker.scale})`,
-            }}
-            onMouseDown={(e) => handleMouseDown(e, sticker.id)}
-            onMouseMove={handleMouseMove}
-            onWheel={handleWheel}
-          >
-            <img src={sticker.url} alt="sticker" />
+            <img src={sticker.url} alt="sticker" draggable="false" />
             {selectedSticker === sticker.id && (
               <>
                 <button
@@ -579,30 +241,18 @@ const StickerEditor: React.FC = () => {
                 >
                   <Trash2 size={16} />
                 </button>
-                <button
+                <div
                   className="rotate-handle"
-                  onMouseDown={handleRotateStart}
+                  onMouseDown={(e) => handleRotateStart(e, sticker.id)}
                 >
-                  {/* <RotateCcwIcon size={16} /> */}
-                  <RotateCcw size={16} />
-                </button>
+                  <RotateCw size={16} />
+                </div>
               </>
             )}
           </div>
         ))}
       </div>
 
-      <div className="sticker-options">
-        {STICKER_OPTIONS.map((url, index) => (
-          <button
-            key={index}
-            className="sticker-option"
-            onClick={() => addSticker(url)}
-          >
-            <img src={url} alt={`sticker option ${index + 1}`} />
-          </button>
-        ))}
-      </div>
       <div className="sticker-options">
         {STICKER_OPTIONS_IMG.map((url, index) => (
           <button
@@ -611,28 +261,16 @@ const StickerEditor: React.FC = () => {
             onClick={() => addSticker(url)}
           >
             <img src={url} alt={`sticker option ${index + 1}`} />
-            {url}
           </button>
         ))}
       </div>
-      {/* <div className="flex flex-wrap gap-2 mb-4">
-        {stickerOptions.map((emoji, index) => (
-          <Button
-            key={emoji + index}
-            variant="outline"
-            className="text-2xl p-2 h-12 w-12"
-            onClick={() => handleAddSticker(emoji)}
-          >
-            {emoji}
-          </Button>
-        ))}
-      </div> */}
 
       <style>
         {`
           .editor-container {
             width: 100%;
-            max-width: 800px;
+            // max-width: 800px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
           }
@@ -641,19 +279,6 @@ const StickerEditor: React.FC = () => {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-          }
-
-          .toolbar button {
-            padding: 8px;
-            background: none;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-          }
-
-          .toolbar button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
           }
 
           .canvas-container {
@@ -669,21 +294,18 @@ const StickerEditor: React.FC = () => {
           }
 
           .sticker {
-            position: absolute;
             cursor: move;
-            touch-action: none;
             user-select: none;
-          }
-
-          .sticker.selected {
-            outline: 2px solid #007bff;
           }
 
           .sticker img {
             width: 100px;
             height: 100px;
             pointer-events: none;
-            user-select: none;
+          }
+
+          .sticker.selected {
+            outline: 2px solid #007bff;
           }
 
           .delete-button {
@@ -695,6 +317,23 @@ const StickerEditor: React.FC = () => {
             border-radius: 50%;
             padding: 4px;
             cursor: pointer;
+            z-index: 2;
+          }
+
+          .rotate-handle {
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
           }
 
           .sticker-options {
@@ -706,7 +345,8 @@ const StickerEditor: React.FC = () => {
           }
 
           .sticker-option {
-            width: 60px;
+            // width: 60px;
+            width: 400px;
             height: 60px;
             padding: 5px;
             border: 1px solid #ccc;
@@ -720,33 +360,6 @@ const StickerEditor: React.FC = () => {
             height: 100%;
             object-fit: contain;
           }
-
-           .rotate-handle {
-            position: absolute;
-            bottom: -20px;
-            right: -20px;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 50%;
-            padding: 4px;
-            cursor: pointer;
-            z-index: 10;
-          }
-
-          .selected .rotate-handle {
-            display: block;
-          }
-
-          /* Add helper text */
-          .editor-container::after {
-            content: "Use mouse wheel to scale. Hold and drag rotation handle to rotate. Arrow keys for fine rotation control.";
-            display: block;
-            text-align: center;
-            margin-top: 10px;
-            color: #666;
-            font-size: 14px;
-          }
-
         `}
       </style>
     </div>
