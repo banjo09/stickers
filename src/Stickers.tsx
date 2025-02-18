@@ -16,6 +16,11 @@ interface Action {
   sticker: StickerType;
 }
 
+interface Position {
+  x: number;
+  y: number;
+}
+
 // Available stickers
 const STICKER_OPTIONS_IMG = [
   '/love.webp',
@@ -28,6 +33,11 @@ const STICKER_OPTIONS = [
   '🌈', '🎨', '🎭', '🎪', '🎯', '🎲',
   '🌺', '🍕', '🎸', '🎮', '📸', '🎪'
 ];
+const STICKER_OPTIONSp = [
+  '/api/placeholder/64/64',
+  '/api/placeholder/64/64',
+  '/api/placeholder/64/64',
+];
 
 const StickerEditor: React.FC = () => {
   const [backgroundImage, setBackgroundImage] = useState<string>('');
@@ -35,9 +45,11 @@ const StickerEditor: React.FC = () => {
   const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<Action[]>([]);
   const [redoStack, setRedoStack] = useState<Action[]>([]);
-
+  const [isDragging, setIsDragging] = useState(false);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const initialTouchRef = useRef<{ x: number; y: number; angle: number; distance: number } | null>(null);
+  const initialMouseRef = useRef<Position | null>(null);
 
   // Handle image upload
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +73,7 @@ const StickerEditor: React.FC = () => {
       scale: 1,
       url,
     };
-
+    
     const action: Action = { type: 'ADD', sticker: newSticker };
     setStickers([...stickers, newSticker]);
     setUndoStack([...undoStack, action]);
@@ -80,20 +92,70 @@ const StickerEditor: React.FC = () => {
     }
   };
 
+  // Mouse Events
+  const handleMouseDown = (event: React.MouseEvent, id: string) => {
+    event.preventDefault();
+    setSelectedSticker(id);
+    setIsDragging(true);
+    initialMouseRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!isDragging || !selectedSticker || !initialMouseRef.current) return;
+
+    const sticker = stickers.find(s => s.id === selectedSticker);
+    if (!sticker) return;
+
+    const deltaX = event.clientX - initialMouseRef.current.x;
+    const deltaY = event.clientY - initialMouseRef.current.y;
+
+    const updatedSticker = {
+      ...sticker,
+      x: sticker.x + deltaX,
+      y: sticker.y + deltaY,
+    };
+
+    setStickers(stickers.map(s => 
+      s.id === selectedSticker ? updatedSticker : s
+    ));
+
+    initialMouseRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  const handleMouseUp = () => {
+    if (selectedSticker && isDragging) {
+      const sticker = stickers.find(s => s.id === selectedSticker);
+      if (sticker) {
+        const action: Action = { type: 'MOVE', sticker };
+        setUndoStack([...undoStack, action]);
+        setRedoStack([]);
+      }
+    }
+    setIsDragging(false);
+    initialMouseRef.current = null;
+  };
+
   // Handle touch start
   const handleTouchStart = (event: React.TouchEvent, id: string) => {
     event.preventDefault();
     setSelectedSticker(id);
-
+    
     if (event.touches.length === 2) {
       const touch1 = event.touches[0];
       const touch2 = event.touches[1];
-
+      
       const angle = Math.atan2(
         touch2.clientY - touch1.clientY,
         touch2.clientX - touch1.clientX
       );
-
+      
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
         touch2.clientY - touch1.clientY
@@ -127,12 +189,12 @@ const StickerEditor: React.FC = () => {
       // Handle rotation and scaling
       const touch1 = event.touches[0];
       const touch2 = event.touches[1];
-
+      
       const angle = Math.atan2(
         touch2.clientY - touch1.clientY,
         touch2.clientX - touch1.clientX
       );
-
+      
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
         touch2.clientY - touch1.clientY
@@ -147,10 +209,10 @@ const StickerEditor: React.FC = () => {
         scale: sticker.scale * deltaScale,
       };
 
-      setStickers(stickers.map(s =>
+      setStickers(stickers.map(s => 
         s.id === selectedSticker ? updatedSticker : s
       ));
-
+      
       initialTouchRef.current = {
         ...initialTouchRef.current,
         angle,
@@ -168,10 +230,10 @@ const StickerEditor: React.FC = () => {
         y: sticker.y + deltaY,
       };
 
-      setStickers(stickers.map(s =>
+      setStickers(stickers.map(s => 
         s.id === selectedSticker ? updatedSticker : s
       ));
-
+      
       initialTouchRef.current = {
         ...initialTouchRef.current,
         x: touch.clientX,
@@ -194,13 +256,25 @@ const StickerEditor: React.FC = () => {
     initialTouchRef.current = null;
   };
 
+  // Clean up event listeners
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      handleMouseUp();
+    };
+
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [selectedSticker, stickers]);
+
   // Undo function
   const undo = () => {
     if (undoStack.length === 0) return;
-
+    
     const action = undoStack[undoStack.length - 1];
     setUndoStack(undoStack.slice(0, -1));
-
+    
     switch (action.type) {
       case 'ADD':
         setStickers(stickers.filter(s => s.id !== action.sticker.id));
@@ -211,24 +285,22 @@ const StickerEditor: React.FC = () => {
       case 'MOVE':
       case 'ROTATE':
       case 'SCALE':
-        // For these actions, we need to store the previous state
-        // This is a simplified version
-        setStickers(stickers.map(s =>
+        setStickers(stickers.map(s => 
           s.id === action.sticker.id ? action.sticker : s
         ));
         break;
     }
-
+    
     setRedoStack([...redoStack, action]);
   };
 
   // Redo function
   const redo = () => {
     if (redoStack.length === 0) return;
-
+    
     const action = redoStack[redoStack.length - 1];
     setRedoStack(redoStack.slice(0, -1));
-
+    
     switch (action.type) {
       case 'ADD':
         setStickers([...stickers, action.sticker]);
@@ -239,12 +311,12 @@ const StickerEditor: React.FC = () => {
       case 'MOVE':
       case 'ROTATE':
       case 'SCALE':
-        setStickers(stickers.map(s =>
+        setStickers(stickers.map(s => 
           s.id === action.sticker.id ? action.sticker : s
         ));
         break;
     }
-
+    
     setUndoStack([...undoStack, action]);
   };
 
@@ -260,17 +332,17 @@ const StickerEditor: React.FC = () => {
           />
           <ImageIcon />
         </label>
-
+        
         <button onClick={undo} disabled={undoStack.length === 0}>
           <RotateCcw />
         </button>
-
+        
         <button onClick={redo} disabled={redoStack.length === 0}>
           <RotateCw />
         </button>
       </div>
 
-      <div
+      <div 
         ref={containerRef}
         className="canvas-container"
         style={{ backgroundImage: `url(${backgroundImage})` }}
@@ -284,6 +356,8 @@ const StickerEditor: React.FC = () => {
                          rotate(${sticker.rotation}deg) 
                          scale(${sticker.scale})`,
             }}
+            onMouseDown={(e) => handleMouseDown(e, sticker.id)}
+            onMouseMove={handleMouseMove}
             onTouchStart={(e) => handleTouchStart(e, sticker.id)}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -301,6 +375,17 @@ const StickerEditor: React.FC = () => {
         ))}
       </div>
 
+      <div className="sticker-options">
+        {STICKER_OPTIONS.map((url, index) => (
+          <button
+            key={index}
+            className="sticker-option"
+            onClick={() => addSticker(url)}
+          >
+            <img src={url} alt={`sticker option ${index + 1}`} />
+          </button>
+        ))}
+      </div>
       <div className="sticker-options">
         {STICKER_OPTIONS_IMG.map((url, index) => (
           <button
@@ -370,6 +455,7 @@ const StickerEditor: React.FC = () => {
             position: absolute;
             cursor: move;
             touch-action: none;
+            user-select: none;
           }
 
           .sticker.selected {
@@ -380,6 +466,7 @@ const StickerEditor: React.FC = () => {
             width: 100px;
             height: 100px;
             pointer-events: none;
+            user-select: none;
           }
 
           .delete-button {
