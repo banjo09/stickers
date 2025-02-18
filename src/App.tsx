@@ -195,21 +195,21 @@ const App = () => {
 
   const handleMouseDown = (e: React.MouseEvent, sticker: Sticker, mode: HandleMode = 'move') => {
     e.stopPropagation();
-    if (!containerRef.current) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    setSelectedSticker(sticker); // This remains set
+    setSelectedSticker(sticker);
 
     switch (mode) {
       case 'rotate':
         setIsRotating(true);
         setInitialRotation(sticker.rotation);
-        const centerX = sticker.x + rect.left;
-        const centerY = sticker.y + rect.top;
+        const centerX = rect.left + sticker.x;
+        const centerY = rect.top + sticker.y;
         setDragOffset({
           centerX,
           centerY,
-          initialAngle: getAngle(centerX, centerY, e.clientX, e.clientY)
+          initialAngle: getAngle(centerX, centerY, e.clientX, e.clientY) - sticker.rotation
         });
         break;
       case 'scale':
@@ -223,8 +223,8 @@ const App = () => {
       default:
         setIsDragging(true);
         setDragOffset({
-          x: e.clientX - (sticker.x + rect.left),
-          y: e.clientY - (sticker.y + rect.top)
+          x: e.clientX - sticker.x,
+          y: e.clientY - sticker.y
         });
     }
   };
@@ -233,17 +233,17 @@ const App = () => {
     if (!selectedSticker || !containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    let updatedSticker = { ...selectedSticker };
+    const updatedSticker = { ...selectedSticker };
 
     if (isDragging && dragOffset.x !== undefined && dragOffset.y !== undefined) {
-      updatedSticker.x = e.clientX - rect.left - dragOffset.x;
-      updatedSticker.y = e.clientY - rect.top - dragOffset.y;
-    } else if (isRotating && dragOffset.centerX !== undefined && dragOffset.centerY !== undefined && dragOffset.initialAngle !== undefined) {
+      updatedSticker.x = e.clientX - dragOffset.x;
+      updatedSticker.y = e.clientY - dragOffset.y;
+    } else if (isRotating && dragOffset.centerX !== undefined && dragOffset.centerY !== undefined) {
       const currentAngle = getAngle(dragOffset.centerX, dragOffset.centerY, e.clientX, e.clientY);
-      updatedSticker.rotation = initialRotation + (currentAngle - dragOffset.initialAngle);
+      updatedSticker.rotation = currentAngle - (dragOffset.initialAngle ?? 0);
     } else if (isScaling && dragOffset.initialY !== undefined && dragOffset.initialScale !== undefined) {
-      const scaleFactor = (dragOffset.initialY - e.clientY) / 100;
-      updatedSticker.scale = Math.max(0.5, Math.min(3, initialScale + scaleFactor));
+      const scaleDelta = (dragOffset.initialY - e.clientY) / 100;
+      updatedSticker.scale = Math.max(0.5, Math.min(3, dragOffset.initialScale + scaleDelta));
     }
 
     setStickers(stickers.map(s => s.id === selectedSticker.id ? updatedSticker : s));
@@ -260,63 +260,63 @@ const App = () => {
     // setSelectedSticker(null);
   };
 
-  const handleTouchStart = (e: React.TouchEvent, sticker: Sticker) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      setInitialTouchDistance({
-        distance: getDistance(touch1, touch2),
-        angle: getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY),
-        scale: sticker.scale,
-        rotation: sticker.rotation
-      });
-      setSelectedSticker(sticker);
-    } else if (e.touches.length === 1) {
-      handleMouseDown({
-        stopPropagation: () => { },
-        clientX: e.touches[0].clientX,
-        clientY: e.touches[0].clientY,
-      } as React.MouseEvent, sticker);
-    }
-  };
+  // const handleTouchStart = (e: React.TouchEvent, sticker: Sticker) => {
+  //   if (e.touches.length === 2) {
+  //     e.preventDefault();
+  //     const touch1 = e.touches[0];
+  //     const touch2 = e.touches[1];
+  //     setInitialTouchDistance({
+  //       distance: getDistance(touch1, touch2),
+  //       angle: getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY),
+  //       scale: sticker.scale,
+  //       rotation: sticker.rotation
+  //     });
+  //     setSelectedSticker(sticker);
+  //   } else if (e.touches.length === 1) {
+  //     handleMouseDown({
+  //       stopPropagation: () => { },
+  //       clientX: e.touches[0].clientX,
+  //       clientY: e.touches[0].clientY,
+  //     } as React.MouseEvent, sticker);
+  //   }
+  // };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && selectedSticker && initialTouchDistance) {
-      e.preventDefault();
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
+  // const handleTouchMove = (e: React.TouchEvent) => {
+  //   if (e.touches.length === 2 && selectedSticker && initialTouchDistance) {
+  //     e.preventDefault();
+  //     const touch1 = e.touches[0];
+  //     const touch2 = e.touches[1];
 
-      const currentDistance = getDistance(touch1, touch2);
-      const scaleFactor = currentDistance / initialTouchDistance.distance;
-      const newScale = Math.max(0.5, Math.min(3, initialTouchDistance.scale * scaleFactor));
+  //     const currentDistance = getDistance(touch1, touch2);
+  //     const scaleFactor = currentDistance / initialTouchDistance.distance;
+  //     const newScale = Math.max(0.5, Math.min(3, initialTouchDistance.scale * scaleFactor));
 
-      const currentAngle = getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY);
-      const rotationDelta = currentAngle - initialTouchDistance.angle;
-      const newRotation = initialTouchDistance.rotation + rotationDelta;
+  //     const currentAngle = getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY);
+  //     const rotationDelta = currentAngle - initialTouchDistance.angle;
+  //     const newRotation = initialTouchDistance.rotation + rotationDelta;
 
-      setStickers(stickers.map(s =>
-        s.id === selectedSticker.id
-          ? { ...s, scale: newScale, rotation: newRotation }
-          : s
-      ));
-    } else if (e.touches.length === 1) {
-      handleMouseMove({
-        clientX: e.touches[0].clientX,
-        clientY: e.touches[0].clientY,
-      } as React.MouseEvent);
-    }
-  };
+  //     setStickers(stickers.map(s =>
+  //       s.id === selectedSticker.id
+  //         ? { ...s, scale: newScale, rotation: newRotation }
+  //         : s
+  //     ));
+  //   } else if (e.touches.length === 1) {
+  //     handleMouseMove({
+  //       clientX: e.touches[0].clientX,
+  //       clientY: e.touches[0].clientY,
+  //     } as React.MouseEvent);
+  //   }
+  // };
 
-  const handleTouchEnd = () => {
-    if (selectedSticker) {
-      addToHistory(stickers);
-    }
-    setInitialTouchDistance(null);
-    setIsDragging(false);
-    // Remove this line to keep the sticker selected:
-    // setSelectedSticker(null);
-  };
+  // const handleTouchEnd = () => {
+  //   if (selectedSticker) {
+  //     addToHistory(stickers);
+  //   }
+  //   setInitialTouchDistance(null);
+  //   setIsDragging(false);
+  //   // Remove this line to keep the sticker selected:
+  //   // setSelectedSticker(null);
+  // };
 
   const handleContainerClick = (e: React.MouseEvent) => {
     // Only deselect if clicking directly on the container
@@ -324,6 +324,70 @@ const App = () => {
       setSelectedSticker(null);
     }
   };
+
+  const handleTouchStart = (e: React.TouchEvent, sticker: Sticker) => {
+    if (e.touches.length === 2) {
+      // Two-finger touch (scale and rotate)
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+  
+      setInitialTouchDistance({
+        distance: getDistance(touch1, touch2),
+        angle: getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY),
+        scale: sticker.scale,
+        rotation: sticker.rotation,
+      });
+  
+      setSelectedSticker(sticker);
+    } else if (e.touches.length === 1) {
+      // Single-finger touch (move)
+      handleMouseDown({
+        stopPropagation: () => {},
+        clientX: e.touches[0].clientX,
+        clientY: e.touches[0].clientY,
+      } as React.MouseEvent, sticker);
+    }
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && selectedSticker && initialTouchDistance) {
+      e.preventDefault();
+  
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+  
+      // Calculate new distance and angle between the two touches
+      const currentDistance = getDistance(touch1, touch2);
+      const scaleFactor = currentDistance / initialTouchDistance.distance;
+      const newScale = Math.max(0.5, Math.min(3, initialTouchDistance.scale * scaleFactor));
+  
+      const currentAngle = getAngle(touch1.clientX, touch1.clientY, touch2.clientX, touch2.clientY);
+      const rotationDelta = currentAngle - initialTouchDistance.angle;
+      const newRotation = initialTouchDistance.rotation + rotationDelta;
+  
+      setStickers(stickers.map(s =>
+        s.id === selectedSticker.id
+          ? { ...s, scale: newScale, rotation: newRotation }
+          : s
+      ));
+    } else if (e.touches.length === 1) {
+      // Handle dragging with a single touch (move)
+      handleMouseMove({
+        clientX: e.touches[0].clientX,
+        clientY: e.touches[0].clientY,
+      } as React.MouseEvent);
+    }
+  };
+  
+  const handleTouchEnd = () => {
+    if (selectedSticker) {
+      addToHistory(stickers);
+    }
+    setInitialTouchDistance(null);
+    setIsDragging(false);
+  };
+  
 
   return (
     // <Card className="p-4 w-full max-w-2xl mx-auto">
@@ -370,9 +434,9 @@ const App = () => {
       />
 
       <div className="flex flex-wrap gap-2 mb-4">
-        {stickerOptions.map((emoji) => (
+        {stickerOptions.map((emoji, index) => (
           <Button
-            key={emoji}
+            key={emoji + index}
             variant="outline"
             className="text-2xl p-2 h-12 w-12"
             onClick={() => handleAddSticker(emoji)}
