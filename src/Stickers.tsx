@@ -320,6 +320,183 @@ const StickerEditor: React.FC = () => {
     setUndoStack([...undoStack, action]);
   };
 
+  const [isRotating, setIsRotating] = useState(false);
+  
+  const initialRotationRef = useRef<number>(0);
+  const initialScaleRef = useRef<number>(1);
+  const stickerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate rotation angle from mouse position
+  const calculateRotation = (event: React.MouseEvent | MouseEvent): number => {
+    if (!stickerRef.current) return 0;
+    
+    const stickerRect = stickerRef.current.getBoundingClientRect();
+    const stickerCenterX = stickerRect.left + stickerRect.width / 2;
+    const stickerCenterY = stickerRect.top + stickerRect.height / 2;
+    
+    const angle = Math.atan2(
+      event.clientY - stickerCenterY,
+      event.clientX - stickerCenterX
+    ) * (180 / Math.PI);
+    
+    return angle;
+  };
+
+  // Mouse wheel handler for scaling
+  const handleWheel = (event: React.WheelEvent) => {
+    event.preventDefault();
+    if (!selectedSticker) return;
+
+    const sticker = stickers.find(s => s.id === selectedSticker);
+    if (!sticker) return;
+
+    const scaleFactor = event.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = sticker.scale * scaleFactor;
+
+    // Limit scale range
+    if (newScale < 0.2 || newScale > 5) return;
+
+    const updatedSticker = {
+      ...sticker,
+      scale: newScale
+    };
+
+    setStickers(stickers.map(s => 
+      s.id === selectedSticker ? updatedSticker : s
+    ));
+
+    // Add to undo stack after a short delay
+    clearTimeout(initialScaleRef.current as unknown as number);
+    initialScaleRef.current = setTimeout(() => {
+      const action: Action = { type: 'SCALE', sticker: updatedSticker };
+      setUndoStack([...undoStack, action]);
+      setRedoStack([]);
+    }, 500) as unknown as number;
+  };
+
+  // Rotation handle mouse down
+  const handleRotateStart = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsRotating(true);
+    initialRotationRef.current = calculateRotation(event);
+  };
+
+  // Rotation handle mouse move
+  const handleRotateMove = (event: MouseEvent) => {
+    if (!isRotating || !selectedSticker) return;
+
+    const sticker = stickers.find(s => s.id === selectedSticker);
+    if (!sticker) return;
+
+    const currentAngle = calculateRotation(event);
+    const deltaAngle = currentAngle - initialRotationRef.current;
+
+    const updatedSticker = {
+      ...sticker,
+      rotation: sticker.rotation + deltaAngle
+    };
+
+    setStickers(stickers.map(s => 
+      s.id === selectedSticker ? updatedSticker : s
+    ));
+
+    initialRotationRef.current = currentAngle;
+  };
+
+  // Rotation handle mouse up
+  const handleRotateEnd = () => {
+    if (isRotating && selectedSticker) {
+      const sticker = stickers.find(s => s.id === selectedSticker);
+      if (sticker) {
+        const action: Action = { type: 'ROTATE', sticker };
+        setUndoStack([...undoStack, action]);
+        setRedoStack([]);
+      }
+    }
+    setIsRotating(false);
+  };
+
+  // Add global mouse move and up listeners for rotation
+  useEffect(() => {
+    const handleGlobalMouseMove = (event: MouseEvent) => {
+      handleRotateMove(event);
+    };
+
+    const handleGlobalMouseUp = () => {
+      handleRotateEnd();
+    };
+
+    if (isRotating) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isRotating, selectedSticker]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!selectedSticker) return;
+
+      const sticker = stickers.find(s => s.id === selectedSticker);
+      if (!sticker) return;
+
+      let updatedSticker = { ...sticker };
+      let needsUpdate = false;
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          updatedSticker.rotation -= event.shiftKey ? 15 : 1;
+          needsUpdate = true;
+          break;
+        case 'ArrowRight':
+          updatedSticker.rotation += event.shiftKey ? 15 : 1;
+          needsUpdate = true;
+          break;
+        case '+':
+        case '=':
+          updatedSticker.scale *= 1.1;
+          if (updatedSticker.scale > 5) updatedSticker.scale = 5;
+          needsUpdate = true;
+          break;
+        case '-':
+        case '_':
+          updatedSticker.scale *= 0.9;
+          if (updatedSticker.scale < 0.2) updatedSticker.scale = 0.2;
+          needsUpdate = true;
+          break;
+      }
+
+      if (needsUpdate) {
+        event.preventDefault();
+        setStickers(stickers.map(s => 
+          s.id === selectedSticker ? updatedSticker : s
+        ));
+
+        // Add to undo stack after a short delay
+        clearTimeout(initialScaleRef.current as unknown as number);
+        initialScaleRef.current = setTimeout(() => {
+          const action: Action = { 
+            type: event.key.includes('Arrow') ? 'ROTATE' : 'SCALE', 
+            sticker: updatedSticker 
+          };
+          setUndoStack([...undoStack, action]);
+          setRedoStack([]);
+        }, 500) as unknown as number;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedSticker, stickers]);
+
   return (
     <div className="editor-container">
       <div className="toolbar">
@@ -342,7 +519,7 @@ const StickerEditor: React.FC = () => {
         </button>
       </div>
 
-      <div 
+      {/* <div 
         ref={containerRef}
         className="canvas-container"
         style={{ backgroundImage: `url(${backgroundImage})` }}
@@ -370,6 +547,46 @@ const StickerEditor: React.FC = () => {
               >
                 <Trash2 size={16} />
               </button>
+            )}
+          </div>
+        ))}
+      </div> */}
+      <div 
+        ref={containerRef}
+        className="canvas-container"
+        style={{ backgroundImage: `url(${backgroundImage})` }}
+      >
+        {stickers.map((sticker) => (
+          <div
+            key={sticker.id}
+            ref={selectedSticker === sticker.id ? stickerRef : null}
+            className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
+            style={{
+              transform: `translate(${sticker.x}px, ${sticker.y}px) 
+                         rotate(${sticker.rotation}deg) 
+                         scale(${sticker.scale})`,
+            }}
+            onMouseDown={(e) => handleMouseDown(e, sticker.id)}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
+          >
+            <img src={sticker.url} alt="sticker" />
+            {selectedSticker === sticker.id && (
+              <>
+                <button
+                  className="delete-button"
+                  onClick={() => deleteSticker(sticker.id)}
+                >
+                  <Trash2 size={16} />
+                </button>
+                <button
+                  className="rotate-handle"
+                  onMouseDown={handleRotateStart}
+                >
+                  {/* <RotateCcwIcon size={16} /> */}
+                  <RotateCcw size={16} />
+                </button>
+              </>
             )}
           </div>
         ))}
@@ -503,6 +720,33 @@ const StickerEditor: React.FC = () => {
             height: 100%;
             object-fit: contain;
           }
+
+           .rotate-handle {
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            padding: 4px;
+            cursor: pointer;
+            z-index: 10;
+          }
+
+          .selected .rotate-handle {
+            display: block;
+          }
+
+          /* Add helper text */
+          .editor-container::after {
+            content: "Use mouse wheel to scale. Hold and drag rotation handle to rotate. Arrow keys for fine rotation control.";
+            display: block;
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+          }
+
         `}
       </style>
     </div>
