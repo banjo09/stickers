@@ -4,7 +4,6 @@ import {
   Circle, Triangle, Star, Hexagon, Heart, Diamond, Pentagon,
   Palette, ImageIcon as NewImageIcon, Smile
 } from 'lucide-react';
-import { Button } from './utils';
 
 type shapeTypes = 'square' | 'circle' | 'triangle' | 'star' | 'hexagon' | 'heart' | 'diamond' | 'pentagon'
 
