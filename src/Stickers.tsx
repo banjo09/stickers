@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, RotateCw, RotateCcw, Image as ImageIcon, Type, Square, Circle, Triangle } from 'lucide-react';
+import { Trash2, RotateCw, RotateCcw, Image as ImageIcon, Type, Square, Circle, Triangle, Star, Hexagon, Heart, Diamond, Pentagon } from 'lucide-react';
+
+type shapeTypes = 'square' | 'circle' | 'triangle' | 'star' | 'hexagon' | 'heart' | 'diamond' | 'pentagon'
 
 // interface StickerType {
 //   id: string;
@@ -16,21 +18,45 @@ interface StickerType {
   y: number;
   rotation: number;
   scale: number;
+  width: number;
+  height: number;
   type: 'image' | 'text' | 'shape';
   content: string;
   style?: {
     color?: string;
     fontSize?: number;
-    shapeType?: 'square' | 'circle' | 'triangle';
+    shapeType?: shapeTypes;
     backgroundColor?: string;
   };
 }
 
+// const ShapeSVGs = {
+//   square: <rect width="100%" height="100%" />,
+//   circle: <ellipse cx="50%" cy="50%" rx="50%" ry="50%" />,
+//   triangle: <polygon points="50,0 100,100 0,100" />
+// };
+
 const ShapeSVGs = {
-  square: <rect width="100" height="100" />,
-  circle: <circle cx="50" cy="50" r="50" />,
-  triangle: <polygon points="50,0 100,100 0,100" />
+  square: <rect width="100%" height="100%" />,
+  circle: <ellipse cx="50%" cy="50%" rx="50%" ry="50%" />,
+  triangle: <polygon points="50%,0 100%,100% 0,100%" />,
+  star: (
+    <polygon points="50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35" />
+  ),
+  hexagon: (
+    <polygon points="25,0 75,0 100,50 75,100 25,100 0,50" />
+  ),
+  heart: (
+    <path d="M50 80 C10 40, 10 10, 50 30 C90 10, 90 40, 50 80 Z" />
+  ),
+  diamond: (
+    <polygon points="50,0 100,50 50,100 0,50" />
+  ),
+  pentagon: (
+    <polygon points="50,0 100,38 81,100 19,100 0,38" />
+  ),
 };
+
 
 interface Action {
   type: 'ADD' | 'MOVE' | 'ROTATE' | 'SCALE' | 'DELETE';
@@ -66,6 +92,12 @@ const StickerEditor: React.FC = () => {
   const stickerStartPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
 
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const resizeStartRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const resizeStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+
   const [textInput, setTextInput] = useState('');
   const [textColor, setTextColor] = useState('#000000');
   const [fontSize, setFontSize] = useState(24);
@@ -81,6 +113,8 @@ const StickerEditor: React.FC = () => {
       y: 100,
       rotation: 0,
       scale: 1,
+      width: 200,
+      height: 50,
       type: 'text',
       content: textInput,
       style: {
@@ -94,13 +128,15 @@ const StickerEditor: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const addShapeSticker = (shapeType: 'square' | 'circle' | 'triangle') => {
+  const addShapeSticker = (shapeType: shapeTypes) => {
     const newSticker: StickerType = {
       id: Math.random().toString(36).substr(2, 9),
       x: 100,
       y: 100,
       rotation: 0,
       scale: 1,
+      width: 100,
+      height: 100,
       type: 'shape',
       content: '',
       style: {
@@ -112,7 +148,75 @@ const StickerEditor: React.FC = () => {
     setStickers([...stickers, newSticker]);
   };
 
+
+  const handleResizeStart = (e: React.MouseEvent, id: string, direction: string) => {
+    e.stopPropagation();
+    setIsResizing(true);
+    setSelectedSticker(id);
+    setResizeDirection(direction);
+
+    const sticker = stickers.find(s => s.id === id);
+    if (sticker) {
+      resizeStartRef.current = {
+        width: sticker.width,
+        height: sticker.height
+      };
+      resizeStartPosRef.current = {
+        x: e.clientX,
+        y: e.clientY
+      };
+    }
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isResizing || !selectedSticker || !resizeDirection) return;
+
+    const deltaX = e.clientX - resizeStartPosRef.current.x;
+    const deltaY = e.clientY - resizeStartPosRef.current.y;
+
+    setStickers(stickers.map(sticker => {
+      if (sticker.id !== selectedSticker) return sticker;
+
+      let newWidth = resizeStartRef.current.width;
+      let newHeight = resizeStartRef.current.height;
+
+      if (resizeDirection.includes('e')) newWidth += deltaX;
+      if (resizeDirection.includes('w')) newWidth -= deltaX;
+      if (resizeDirection.includes('s')) newHeight += deltaY;
+      if (resizeDirection.includes('n')) newHeight -= deltaY;
+
+      // Enforce minimum dimensions
+      newWidth = Math.max(20, newWidth);
+      newHeight = Math.max(20, newHeight);
+
+      return {
+        ...sticker,
+        width: newWidth,
+        height: newHeight
+      };
+    }));
+  };
+
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+    setResizeDirection(null);
+  };
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleResizeEnd);
+    };
+  }, [isResizing, selectedSticker, resizeDirection]
+  );
+
+
   const renderSticker = (sticker: StickerType) => {
+    console.log('sticker', sticker)
     switch (sticker.type) {
       case 'text':
         return (
@@ -120,8 +224,13 @@ const StickerEditor: React.FC = () => {
             style={{
               color: sticker.style?.color,
               fontSize: `${sticker.style?.fontSize}px`,
-              padding: '10px',
-              whiteSpace: 'nowrap'
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden'
             }}
           >
             {sticker.content}
@@ -129,7 +238,7 @@ const StickerEditor: React.FC = () => {
         );
       case 'shape':
         return (
-          <svg width="100" height="100" viewBox="0 0 100 100">
+          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
             {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
               fill: sticker.style?.backgroundColor
             })}
@@ -150,21 +259,6 @@ const StickerEditor: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
-
-  // const addSticker = (url: string) => {
-  //   const newSticker: StickerType = {
-  //     id: Math.random().toString(36).substr(2, 9),
-  //     x: 100,
-  //     y: 100,
-  //     rotation: 0,
-  //     scale: 1,
-  //     url,
-  //   };
-
-  //   setStickers([...stickers, newSticker]);
-  //   setUndoStack([...undoStack, { type: 'ADD', sticker: newSticker }]);
-  //   setRedoStack([]);
-  // };
 
   const deleteSticker = (id: string) => {
     const stickerToDelete = stickers.find(s => s.id === id);
@@ -324,6 +418,7 @@ const StickerEditor: React.FC = () => {
   const handleRef = (el, sticker) => {
     stickerRefs.current[sticker.id] = el
   }
+  // console.log('stickers', stickers)
 
   return (
     <div className="editor-container">
@@ -352,6 +447,21 @@ const StickerEditor: React.FC = () => {
           </button>
           <button className="toolbar-button" onClick={() => addShapeSticker('triangle')}>
             <Triangle size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('star')}>
+            <Star size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('hexagon')}>
+            <Hexagon size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('heart')}>
+            <Heart size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('diamond')}>
+            <Diamond size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('pentagon')}>
+            <Pentagon size={20} />
           </button>
           <input
             type="color"
@@ -413,12 +523,13 @@ const StickerEditor: React.FC = () => {
         {stickers.map((sticker) => (
           <div
             key={sticker.id}
-            // ref={el => stickerRefs.current[sticker.id] = el}
             ref={(el) => handleRef(el, sticker)}
             className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
             style={{
               transform: `translate(${sticker.x}px, ${sticker.y}px) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
               position: 'absolute',
+              width: `${sticker.width}px`,
+              height: `${sticker.height}px`
             }}
             onMouseDown={(e) => handleStickerDragStart(e, sticker.id)}
             onWheel={(e) => handleWheel(e, sticker.id)}
@@ -438,6 +549,16 @@ const StickerEditor: React.FC = () => {
                   onMouseDown={(e) => handleRotateStart(e, sticker.id)}
                 >
                   <RotateCw size={16} />
+                </div>
+                <div className="resize-handles">
+                  <div className="resize-handle n" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'n')} />
+                  <div className="resize-handle e" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'e')} />
+                  <div className="resize-handle s" onMouseDown={(e) => handleResizeStart(e, sticker.id, 's')} />
+                  <div className="resize-handle w" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'w')} />
+                  <div className="resize-handle nw" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'nw')} />
+                  <div className="resize-handle ne" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'ne')} />
+                  <div className="resize-handle se" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'se')} />
+                  <div className="resize-handle sw" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'sw')} />
                 </div>
               </>
             )}
@@ -756,6 +877,81 @@ const StickerEditor: React.FC = () => {
             border-radius: 4px;
             font-size: 14px;
             line-height: 1.5;
+          }
+
+          .resize-handles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+          }
+
+          .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border: 1px solid #007bff;
+            border-radius: 50%;
+          }
+
+          .resize-handle.n {
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: ns-resize;
+          }
+
+          .resize-handle.e {
+            right: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: ew-resize;
+          }
+
+          .resize-handle.s {
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: ns-resize;
+          }
+
+          .resize-handle.w {
+            left: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: ew-resize;
+          }
+
+          .resize-handle.nw {
+            top: -5px;
+            left: -5px;
+            cursor: nw-resize;
+          }
+
+          .resize-handle.ne {
+            top: -5px;
+            right: -5px;
+            cursor: ne-resize;
+          }
+
+          .resize-handle.se {
+            bottom: -5px;
+            right: -5px;
+            cursor: se-resize;
+          }
+
+          .resize-handle.sw {
+            bottom: -5px;
+            left: -5px;
+            cursor: sw-resize;
+          }
+
+          .sticker {
+            cursor: move;
+            user-select: none;
+            transition: transform 0.05s ease-out;
           }
         `}
       </style>
