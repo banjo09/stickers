@@ -1,5 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, RotateCw, RotateCcw, Image as ImageIcon } from 'lucide-react';
+import { Trash2, RotateCw, RotateCcw, Image as ImageIcon, Type, Square, Circle, Triangle } from 'lucide-react';
+
+// interface StickerType {
+//   id: string;
+//   x: number;
+//   y: number;
+//   rotation: number;
+//   scale: number;
+//   url: string;
+// }
 
 interface StickerType {
   id: string;
@@ -7,8 +16,21 @@ interface StickerType {
   y: number;
   rotation: number;
   scale: number;
-  url: string;
+  type: 'image' | 'text' | 'shape';
+  content: string;
+  style?: {
+    color?: string;
+    fontSize?: number;
+    shapeType?: 'square' | 'circle' | 'triangle';
+    backgroundColor?: string;
+  };
 }
+
+const ShapeSVGs = {
+  square: <rect width="100" height="100" />,
+  circle: <circle cx="50" cy="50" r="50" />,
+  triangle: <polygon points="50,0 100,100 0,100" />
+};
 
 interface Action {
   type: 'ADD' | 'MOVE' | 'ROTATE' | 'SCALE' | 'DELETE';
@@ -35,13 +57,88 @@ const StickerEditor: React.FC = () => {
   const [redoStack, setRedoStack] = useState<Action[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const stickerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const initialRotationRef = useRef<number>(0);
   const currentStickerRotation = useRef<number>(0);
   const dragStartPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const stickerStartPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+
+  const [textInput, setTextInput] = useState('');
+  const [textColor, setTextColor] = useState('#000000');
+  const [fontSize, setFontSize] = useState(24);
+  const [shapeColor, setShapeColor] = useState('#FF5733');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const addTextSticker = () => {
+    if (!textInput.trim()) return;
+
+    const newSticker: StickerType = {
+      id: Math.random().toString(36).substr(2, 9),
+      x: 100,
+      y: 100,
+      rotation: 0,
+      scale: 1,
+      type: 'text',
+      content: textInput,
+      style: {
+        color: textColor,
+        fontSize: fontSize
+      }
+    };
+
+    setStickers([...stickers, newSticker]);
+    setTextInput('');
+    setIsModalOpen(false);
+  };
+
+  const addShapeSticker = (shapeType: 'square' | 'circle' | 'triangle') => {
+    const newSticker: StickerType = {
+      id: Math.random().toString(36).substr(2, 9),
+      x: 100,
+      y: 100,
+      rotation: 0,
+      scale: 1,
+      type: 'shape',
+      content: '',
+      style: {
+        shapeType: shapeType,
+        backgroundColor: shapeColor
+      }
+    };
+
+    setStickers([...stickers, newSticker]);
+  };
+
+  const renderSticker = (sticker: StickerType) => {
+    switch (sticker.type) {
+      case 'text':
+        return (
+          <div
+            style={{
+              color: sticker.style?.color,
+              fontSize: `${sticker.style?.fontSize}px`,
+              padding: '10px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {sticker.content}
+          </div>
+        );
+      case 'shape':
+        return (
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
+              fill: sticker.style?.backgroundColor
+            })}
+          </svg>
+        );
+      default:
+        return <img src={sticker.content} alt="sticker" draggable="false" />;
+    }
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,20 +151,20 @@ const StickerEditor: React.FC = () => {
     }
   };
 
-  const addSticker = (url: string) => {
-    const newSticker: StickerType = {
-      id: Math.random().toString(36).substr(2, 9),
-      x: 100,
-      y: 100,
-      rotation: 0,
-      scale: 1,
-      url,
-    };
-    
-    setStickers([...stickers, newSticker]);
-    setUndoStack([...undoStack, { type: 'ADD', sticker: newSticker }]);
-    setRedoStack([]);
-  };
+  // const addSticker = (url: string) => {
+  //   const newSticker: StickerType = {
+  //     id: Math.random().toString(36).substr(2, 9),
+  //     x: 100,
+  //     y: 100,
+  //     rotation: 0,
+  //     scale: 1,
+  //     url,
+  //   };
+
+  //   setStickers([...stickers, newSticker]);
+  //   setUndoStack([...undoStack, { type: 'ADD', sticker: newSticker }]);
+  //   setRedoStack([]);
+  // };
 
   const deleteSticker = (id: string) => {
     const stickerToDelete = stickers.find(s => s.id === id);
@@ -99,7 +196,7 @@ const StickerEditor: React.FC = () => {
     const rect = stickerElement.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    
+
     initialRotationRef.current = getAngle(centerX, centerY, event.clientX, event.clientY);
     const sticker = stickers.find(s => s.id === id);
     currentStickerRotation.current = sticker?.rotation || 0;
@@ -118,10 +215,10 @@ const StickerEditor: React.FC = () => {
 
     const currentAngle = getAngle(centerX, centerY, event.clientX, event.clientY);
     const deltaAngle = currentAngle - initialRotationRef.current;
-    
+
     const newRotation = currentStickerRotation.current + deltaAngle;
 
-    setStickers(stickers.map(sticker => 
+    setStickers(stickers.map(sticker =>
       sticker.id === selectedSticker
         ? { ...sticker, rotation: newRotation }
         : sticker
@@ -155,13 +252,13 @@ const StickerEditor: React.FC = () => {
     const deltaX = event.clientX - dragStartPositionRef.current.x;
     const deltaY = event.clientY - dragStartPositionRef.current.y;
 
-    setStickers(stickers.map(sticker => 
+    setStickers(stickers.map(sticker =>
       sticker.id === selectedSticker
         ? {
-            ...sticker,
-            x: stickerStartPositionRef.current.x + deltaX,
-            y: stickerStartPositionRef.current.y + deltaY
-          }
+          ...sticker,
+          x: stickerStartPositionRef.current.x + deltaX,
+          y: stickerStartPositionRef.current.y + deltaY
+        }
         : sticker
     ));
   };
@@ -182,7 +279,7 @@ const StickerEditor: React.FC = () => {
       scale: newScale
     };
 
-    setStickers(stickers.map(s => 
+    setStickers(stickers.map(s =>
       s.id === id ? updatedSticker : s
     ));
 
@@ -230,7 +327,7 @@ const StickerEditor: React.FC = () => {
 
   return (
     <div className="editor-container">
-      <div className="toolbar">
+      {/* <div className="toolbar">
         <label className="upload-button">
           <input
             type="file"
@@ -240,9 +337,75 @@ const StickerEditor: React.FC = () => {
           />
           <ImageIcon />
         </label>
+      </div> */}
+      <div className="toolbar">
+        <button className="toolbar-button" onClick={() => setIsModalOpen(true)}>
+          <Type size={20} />
+        </button>
+
+        <div className="shape-tools">
+          <button className="toolbar-button" onClick={() => addShapeSticker('square')}>
+            <Square size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('circle')}>
+            <Circle size={20} />
+          </button>
+          <button className="toolbar-button" onClick={() => addShapeSticker('triangle')}>
+            <Triangle size={20} />
+          </button>
+          <input
+            type="color"
+            value={shapeColor}
+            onChange={(e) => setShapeColor(e.target.value)}
+            className="color-picker"
+          />
+        </div>
       </div>
 
-      <div 
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Add Text Sticker</h2>
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Enter text..."
+              className="text-input"
+            />
+            <div className="control-group">
+              <label>
+                Color:
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => setTextColor(e.target.value)}
+                  className="color-picker"
+                />
+              </label>
+            </div>
+            <div className="control-group">
+              <label>
+                Font Size:
+                <input
+                  type="number"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))}
+                  min="12"
+                  max="72"
+                  className="number-input"
+                />
+              </label>
+            </div>
+            <div className="modal-buttons">
+              <button onClick={addTextSticker} className="button primary">Add</button>
+              <button onClick={() => setIsModalOpen(false)} className="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div
         ref={containerRef}
         className="canvas-container"
         style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none' }}
@@ -252,7 +415,7 @@ const StickerEditor: React.FC = () => {
             key={sticker.id}
             // ref={el => stickerRefs.current[sticker.id] = el}
             ref={(el) => handleRef(el, sticker)}
-                        className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
+            className={`sticker ${selectedSticker === sticker.id ? 'selected' : ''}`}
             style={{
               transform: `translate(${sticker.x}px, ${sticker.y}px) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
               position: 'absolute',
@@ -260,7 +423,8 @@ const StickerEditor: React.FC = () => {
             onMouseDown={(e) => handleStickerDragStart(e, sticker.id)}
             onWheel={(e) => handleWheel(e, sticker.id)}
           >
-            <img src={sticker.url} alt="sticker" draggable="false" />
+            {/* <img src={sticker.url} alt="sticker" draggable="false" /> */}
+            {renderSticker(sticker)}
             {selectedSticker === sticker.id && (
               <>
                 <button
@@ -281,7 +445,8 @@ const StickerEditor: React.FC = () => {
         ))}
       </div>
 
-      <div className="sticker-options">
+
+      {/* <div className="sticker-options">
         {STICKER_OPTIONS_IMG.map((url, index) => (
           <button
             key={index}
@@ -291,15 +456,24 @@ const StickerEditor: React.FC = () => {
             <img src={url} alt={`sticker option ${index + 1}`} />
           </button>
         ))}
-      </div>
+      </div> */}
+
+      {/* <div className="instructions">
+        • Click and drag sticker to move
+        • Use rotation handle (↻) to rotate
+        • Mouse wheel to scale up/down
+      </div> */}
 
       <div className="instructions">
-        • Click and drag sticker to move
+        • Click text icon to add custom text
+        • Click shape icons to add shapes
+        • Use color picker to change shape colors
+        • Click and drag to move
         • Use rotation handle (↻) to rotate
         • Mouse wheel to scale up/down
       </div>
 
-      <style>
+      {/* <style>
         {`
           .editor-container {
             width: 100%;
@@ -392,6 +566,187 @@ const StickerEditor: React.FC = () => {
             width: 100%;
             height: 100%;
             object-fit: contain;
+          }
+
+          .instructions {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.5;
+          }
+        `}
+      </style> */}
+      <style>
+        {`
+          .editor-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+
+          .toolbar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+          }
+
+          .toolbar-button {
+            padding: 8px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .toolbar-button:hover {
+            background: #f0f0f0;
+          }
+
+          .shape-tools {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+          }
+
+          .color-picker {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+          }
+
+          .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+          }
+
+          .modal {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 400px;
+          }
+
+          .modal h2 {
+            margin: 0 0 20px 0;
+          }
+
+          .text-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 15px;
+          }
+
+          .control-group {
+            margin-bottom: 15px;
+          }
+
+          .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+
+          .number-input {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+          }
+
+          .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+          }
+
+          .button {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            background: white;
+          }
+
+          .button.primary {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+          }
+
+          .button:hover {
+            opacity: 0.9;
+          }
+
+          .canvas-container {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #ccc;
+            position: relative;
+            overflow: hidden;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #f0f0f0;
+          }
+
+          .sticker {
+            cursor: move;
+            user-select: none;
+            transition: transform 0.05s ease-out;
+          }
+
+          .sticker.selected {
+            outline: 2px solid #007bff;
+          }
+
+          .delete-button {
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            padding: 4px;
+            cursor: pointer;
+            z-index: 2;
+          }
+
+          .rotate-handle {
+            position: absolute;
+            bottom: -20px;
+            right: -20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
           }
 
           .instructions {
