@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, RotateCw, RotateCcw, Image as ImageIcon, Type, Square, Circle, Triangle, Star, Hexagon, Heart, Diamond, Pentagon } from 'lucide-react';
+import {
+  Trash2, RotateCw, RotateCcw, Image as ImageIcon, Type, Square,
+  Circle, Triangle, Star, Hexagon, Heart, Diamond, Pentagon,
+  Palette, ImageIcon as NewImageIcon, Smile
+} from 'lucide-react';
+import { Button } from './utils';
 
 type shapeTypes = 'square' | 'circle' | 'triangle' | 'star' | 'hexagon' | 'heart' | 'diamond' | 'pentagon'
 
+// DONT REMOVE
 // interface StickerType {
 //   id: string;
 //   x: number;
@@ -11,6 +17,11 @@ type shapeTypes = 'square' | 'circle' | 'triangle' | 'star' | 'hexagon' | 'heart
 //   scale: number;
 //   url: string;
 // }
+
+interface EditModalType {
+  type: 'text' | 'shape' | 'emoji';
+  stickerId: string | null;
+}
 
 interface StickerType {
   id: string;
@@ -27,6 +38,7 @@ interface StickerType {
     fontSize?: number;
     shapeType?: shapeTypes;
     backgroundColor?: string;
+    backgroundImage?: string;
   };
 }
 
@@ -57,6 +69,11 @@ const ShapeSVGs = {
   ),
 };
 
+const EMOJI_STICKERS = [
+  '❤️', '😂', '🔥', '😍', '🥰', '✨', '😊', '🎉',
+  '👍', '💯', '🙌', '💪', '🤔', '😎', '💕', '🌟'
+];
+
 
 interface Action {
   type: 'ADD' | 'MOVE' | 'ROTATE' | 'SCALE' | 'DELETE';
@@ -84,7 +101,13 @@ const StickerEditor: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
 
+
+  const [editModal, setEditModal] = useState<EditModalType | null>(null);
+  const [imageUploadId, setImageUploadId] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const stickerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const initialRotationRef = useRef<number>(0);
   const currentStickerRotation = useRef<number>(0);
@@ -202,6 +225,28 @@ const StickerEditor: React.FC = () => {
     setResizeDirection(null);
   };
 
+  const handleShapeBackgroundUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && imageUploadId) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setStickers(stickers.map(sticker =>
+          sticker.id === imageUploadId
+            ? {
+              ...sticker,
+              style: {
+                ...sticker.style,
+                backgroundImage: e.target?.result as string
+              }
+            }
+            : sticker
+        ));
+      };
+      reader.readAsDataURL(file);
+      setImageUploadId(null);
+    }
+  };
+
   useEffect(() => {
     if (isResizing) {
       document.addEventListener('mousemove', handleResizeMove);
@@ -236,13 +281,31 @@ const StickerEditor: React.FC = () => {
             {sticker.content}
           </div>
         );
+      // case 'shape':
+      //   return (
+      //     <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+      //       {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
+      //         fill: sticker.style?.backgroundColor
+      //       })}
+      //     </svg>
+      //   );
+
       case 'shape':
         return (
-          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
-              fill: sticker.style?.backgroundColor
-            })}
-          </svg>
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundImage: sticker.style?.backgroundImage ? `url(${sticker.style.backgroundImage})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}>
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
+                fill: sticker.style?.backgroundColor,
+                style: { opacity: sticker.style?.backgroundImage ? 0.5 : 1 }
+              })}
+            </svg>
+          </div>
         );
       default:
         return <img src={sticker.content} alt="sticker" draggable="false" />;
@@ -422,18 +485,17 @@ const StickerEditor: React.FC = () => {
 
   return (
     <div className="editor-container">
-      {/* <div className="toolbar">
-        <label className="upload-button">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            style={{ display: 'none' }}
-          />
-          <ImageIcon />
-        </label>
-      </div> */}
       <div className="toolbar">
+        <label className="upload-button">
+          <ImageIcon onClick={() => fileInputRef.current?.click()} />
+        </label>
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          onChange={handleImageUpload}
+          style={{ display: 'none' }}
+        />
         <button className="toolbar-button" onClick={() => setIsModalOpen(true)}>
           <Type size={20} />
         </button>
@@ -469,6 +531,18 @@ const StickerEditor: React.FC = () => {
             onChange={(e) => setShapeColor(e.target.value)}
             className="color-picker"
           />
+        </div>
+        <div className="emoji-stickers">
+          {EMOJI_STICKERS.map((emoji, index) => (
+            <button
+              key={index}
+              className="emoji-button"
+              // onClick={() => addTextSticker(emoji)}
+              onClick={() => addShapeSticker('pentagon')}
+            >
+              {emoji}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -510,6 +584,70 @@ const StickerEditor: React.FC = () => {
             <div className="modal-buttons">
               <button onClick={addTextSticker} className="button primary">Add</button>
               <button onClick={() => setIsModalOpen(false)} className="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>{editModal.type === 'text' ? 'Edit Text' : 'Edit Shape'}</h2>
+
+            {editModal.type === 'text' && (
+              <>
+                <div className="control-group">
+                  <label>
+                    Font Size:
+                    <input
+                      type="number"
+                      value={stickers.find(s => s.id === editModal.stickerId)?.style?.fontSize || 24}
+                      onChange={(e) => {
+                        setStickers(stickers.map(sticker =>
+                          sticker.id === editModal.stickerId
+                            ? {
+                              ...sticker,
+                              style: { ...sticker.style, fontSize: Number(e.target.value) }
+                            }
+                            : sticker
+                        ));
+                      }}
+                      min="12"
+                      max="72"
+                      className="number-input"
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+
+            <div className="control-group">
+              <label>
+                {editModal.type === 'text' ? 'Text Color' : 'Shape Color'}:
+                <input
+                  type="color"
+                  value={stickers.find(s => s.id === editModal.stickerId)?.style?.color ||
+                    stickers.find(s => s.id === editModal.stickerId)?.style?.backgroundColor ||
+                    '#000000'}
+                  onChange={(e) => {
+                    setStickers(stickers.map(sticker =>
+                      sticker.id === editModal.stickerId
+                        ? {
+                          ...sticker,
+                          style: {
+                            ...sticker.style,
+                            [editModal.type === 'text' ? 'color' : 'backgroundColor']: e.target.value
+                          }
+                        }
+                        : sticker
+                    ));
+                  }}
+                  className="color-picker"
+                />
+              </label>
+            </div>
+
+            <div className="modal-buttons">
+              <button onClick={() => setEditModal(null)} className="button">Close</button>
             </div>
           </div>
         </div>
@@ -559,6 +697,38 @@ const StickerEditor: React.FC = () => {
                   <div className="resize-handle ne" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'ne')} />
                   <div className="resize-handle se" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'se')} />
                   <div className="resize-handle sw" onMouseDown={(e) => handleResizeStart(e, sticker.id, 'sw')} />
+                </div>
+                <div className="edit-controls">
+                  {sticker.type === 'text' && (
+                    <>
+                      <button
+                        className="edit-button"
+                        onClick={() => setEditModal({ type: 'text', stickerId: sticker.id })}
+                      >
+                        <Type size={16} />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    className="edit-button"
+                    onClick={() => setEditModal({ type: 'shape', stickerId: sticker.id })}
+                  >
+                    <Palette size={16} />
+                  </button>
+                  {sticker.type === 'shape' && (
+                    <>
+                      <label className="edit-button">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleShapeBackgroundUpload}
+                          onClick={() => setImageUploadId(sticker.id)}
+                          style={{ display: 'none' }}
+                        />
+                        <ImageIcon size={16} />
+                      </label>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -952,6 +1122,54 @@ const StickerEditor: React.FC = () => {
             cursor: move;
             user-select: none;
             transition: transform 0.05s ease-out;
+          }
+
+          .edit-controls {
+            position: absolute;
+            top: -20px;
+            left: -20px;
+            display: flex;
+            gap: 5px;
+            z-index: 2;
+          }
+
+          .edit-button {
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            padding: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .edit-button:hover {
+            background: #f0f0f0;
+          }
+            .emoji-stickers {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+          }
+
+          .emoji-button {
+            font-size: 24px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+          }
+
+          .emoji-button:hover {
+            background: #f0f0f0;
           }
         `}
       </style>
