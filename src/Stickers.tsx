@@ -4,6 +4,9 @@ import {
   Circle, Triangle, Star, Hexagon, Heart, Diamond, Pentagon,
   Palette, ImageIcon as NewImageIcon, Smile
 } from 'lucide-react';
+import { IGif } from "@giphy/js-types";
+import Giphy from './Giphy';
+
 
 type shapeTypes = 'square' | 'circle' | 'triangle' | 'star' | 'hexagon' | 'heart' | 'diamond' | 'pentagon'
 
@@ -30,7 +33,7 @@ interface StickerType {
   scale: number;
   width: number;
   height: number;
-  type: 'image' | 'text' | 'shape' | 'emoji';
+  type: 'image' | 'text' | 'shape' | 'emoji' | 'gif';
   content: string;
   style?: {
     color?: string;
@@ -104,6 +107,13 @@ const StickerEditor: React.FC = () => {
   const [editModal, setEditModal] = useState<EditModalType | null>(null);
   const [imageUploadId, setImageUploadId] = useState<string | null>(null);
 
+
+  const [giphURL, setGiphURL] = useState<string | undefined>(
+    "https://media1.tenor.com/m/WMCy2kbsNLUAAAAC/wedding-we-want-a-wedding.gif"
+  );
+  const [giphyView, setGiphyView] = useState<boolean>(false);
+
+
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,6 +135,11 @@ const StickerEditor: React.FC = () => {
   const [fontSize, setFontSize] = useState(24);
   const [shapeColor, setShapeColor] = useState('#FF5733');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const setGif = (url: string) => {
+    setGiphURL(url);
+    setGiphyView(false);
+  };
 
   const addTextSticker = () => {
     if (!textInput.trim()) return;
@@ -151,7 +166,6 @@ const StickerEditor: React.FC = () => {
   };
 
   const addEmojiSticker = (emoji) => {
-
     const newSticker: StickerType = {
       id: Math.random().toString(36),
       x: 100,
@@ -166,6 +180,23 @@ const StickerEditor: React.FC = () => {
         color: textColor,
         fontSize: fontSize
       }
+    };
+
+    setStickers([...stickers, newSticker]);
+  };
+
+  const addGifSticker = (url) => {
+    const newSticker: StickerType = {
+      id: Math.random().toString(36),
+      x: 100,
+      y: 100,
+      rotation: 0,
+      scale: 1,
+      width: 200,
+      height: 50,
+      type: 'gif',
+      content: url,
+      style: {}
     };
 
     setStickers([...stickers, newSticker]);
@@ -322,7 +353,9 @@ const StickerEditor: React.FC = () => {
             <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
               {React.cloneElement(ShapeSVGs[sticker.style?.shapeType || 'square'], {
                 fill: sticker.style?.backgroundColor,
-                style: { opacity: sticker.style?.backgroundImage ? 0.5 : 1 }
+                style: {
+                  opacity: sticker.style?.backgroundImage ? 0.5 : 1,
+                }
               })}
             </svg>
           </div>
@@ -345,7 +378,13 @@ const StickerEditor: React.FC = () => {
           </div>
         );
       default:
-        return <img src={sticker.content} alt="sticker" draggable="false" />;
+        return <img
+          src={sticker.content}
+          alt="sticker"
+          draggable="false"
+          width='100%'
+          height='100%'
+        />;
     }
   };
 
@@ -569,17 +608,48 @@ const StickerEditor: React.FC = () => {
             className="color-picker"
           />
         </div>
-        <div className="emoji-stickers">
-          {EMOJI_STICKERS.map((emoji, index) => (
-            <button
-              key={index}
-              className="emoji-button"
-              onClick={() => addEmojiSticker(emoji)}
-            >
-              {emoji}
-            </button>
-          ))}
+        {
+          giphURL && <img
+            src={giphURL}
+            alt={"gif"}
+            style={{
+              marginTop: 4,
+              width: "247px",
+              height: "142px"
+            }}
+            onClick={() => addGifSticker(giphURL)}
+          />
+        }
+        <div
+          style={{
+            cursor: "pointer"
+          }}
+          onClick={() => setGiphyView(true)}
+        >
+          {!giphURL ? "add gif" : "change gif"}
         </div>
+      </div>
+      {
+        giphyView && <Giphy
+          maxWidth={280}
+          onClose={() => {
+            setGiphyView(false);
+          }}
+          selectGiphyImage={(gif: IGif) => {
+            setGif(gif.images.original.url);
+          }}
+        />
+      }
+      <div className="emoji-stickers">
+        {EMOJI_STICKERS.map((emoji, index) => (
+          <button
+            key={index}
+            className="emoji-button"
+            onClick={() => addEmojiSticker(emoji)}
+          >
+            {emoji}
+          </button>
+        ))}
       </div>
 
       {isModalOpen && (
@@ -718,7 +788,10 @@ const StickerEditor: React.FC = () => {
       <div
         ref={containerRef}
         className="canvas-container"
-        style={{ backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none' }}
+        style={{
+          backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+          objectFit: "cover"
+        }}
       >
         {stickers.map((sticker) => (
           <div
@@ -945,9 +1018,11 @@ const StickerEditor: React.FC = () => {
         {`
           .editor-container {
             width: 100%;
-            max-width: 800px;
+            // max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            // background-color: white
+            background-color: pink
           }
 
           .toolbar {
@@ -1221,8 +1296,9 @@ const StickerEditor: React.FC = () => {
           .edit-button:hover {
             background: #f0f0f0;
           }
-            .emoji-stickers {
+          .emoji-stickers {
             display: flex;
+            flex-direction: row;
             gap: 5px;
             flex-wrap: wrap;
             margin-top: 10px;
