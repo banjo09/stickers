@@ -1,0 +1,89 @@
+input:-webkit-autofill.template1 {
+  -webkit-box-shadow: 0 0 0 50px #fff inset;
+  -webkit-text-fill-color: #000;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+input:-webkit-autofill:focus.template1 {
+  -webkit-box-shadow: 0 0 0 50px #fff inset;
+  -webkit-text-fill-color: #000;
+  caret-color: #000;
+}
+input:-webkit-autofill:hover.template1 {
+  -webkit-box-shadow: 0 0 0 50px #fff inset;
+  -webkit-text-fill-color: #000;
+  background-color: #fff !important;
+}
+
+input:-webkit-autofill.template2 {
+  -webkit-box-shadow: 0 0 0 50px #200707 inset;
+  -webkit-text-fill-color: #fff;
+  animation-name: autofill;
+  animation-fill-mode: both;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+input:-webkit-autofill:focus.template2 {
+  -webkit-box-shadow: 0 0 0 50px #200707 inset;
+  animation-name: autofill;
+  animation-fill-mode: both;
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+}
+input:-webkit-autofill:hover.template2 {
+  -webkit-box-shadow: 0 0 0 50px #200707 inset;
+  animation-name: autofill;
+  animation-fill-mode: both;
+  -webkit-text-fill-color: #fff;
+  background-color: #200707 !important;
+}
+@keyframes autofill {
+  0% {
+    -webkit-box-shadow: 0 0 0 50px #200707 inset;
+    -webkit-text-fill-color: #fff;
+  }
+}
+input:-webkit-autofill.giphy-input {
+  -webkit-box-shadow: 0 0 0 50px #f0f0f0 inset;
+  -webkit-text-fill-color: #787878;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+input:-webkit-autofill:focus.giphy-input {
+  -webkit-box-shadow: 0 0 0 50px #f0f0f0 inset;
+  -webkit-text-fill-color: #787878;
+  caret-color: #787878;
+}
+input:-webkit-autofill:hover.giphy-input {
+  -webkit-box-shadow: 0 0 0 50spx #f0f0f0 inset;
+  -webkit-text-fill-color: #787878;
+  background-color: #f0f0f0 !important;
+}
+input:-webkit-autofill.wish-input {
+  -webkit-box-shadow: 0 0 0 50px #f0f0f0 inset;
+  -webkit-text-fill-color: #000;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+input:-webkit-autofill:focus.wish-input {
+  -webkit-box-shadow: 0 0 0 50px #f0f0f0 inset;
+  -webkit-text-fill-color: #000;
+  caret-color: #000;
+}
+input:-webkit-autofill:hover.wish-input {
+  -webkit-box-shadow: 0 0 0 50px #f0f0f0 inset;
+  -webkit-text-fill-color: #000;
+  background-color: #f0f0f0 !important;
+}
