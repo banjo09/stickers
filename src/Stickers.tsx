@@ -337,7 +337,8 @@ const StickerEditor: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               whiteSpace: 'nowrap',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              fontSize: `${sticker.style?.fontSize}px`,
             }}
           >
             {sticker.content}
@@ -654,32 +655,58 @@ const StickerEditor: React.FC = () => {
                 </div>
               </>
             )}
-
-            <div className="control-group">
-              <label>
-                {editModal.type === 'text' ? 'Text Color' : 'Shape Color'}:
-                <input
-                  type="color"
-                  value={stickers.find(s => s.id === editModal.stickerId)?.style?.color ||
-                    stickers.find(s => s.id === editModal.stickerId)?.style?.backgroundColor ||
-                    '#000000'}
-                  onChange={(e) => {
-                    setStickers(stickers.map(sticker =>
-                      sticker.id === editModal.stickerId
-                        ? {
-                          ...sticker,
-                          style: {
-                            ...sticker.style,
-                            [editModal.type === 'text' ? 'color' : 'backgroundColor']: e.target.value
+            {editModal.type === 'emoji' && (
+              <div className="control-group">
+                <label>
+                  Emoji Size:
+                  <input
+                    type="number"
+                    value={stickers.find(s => s.id === editModal.stickerId)?.style?.fontSize || 48}
+                    onChange={(e) => {
+                      setStickers(stickers.map(sticker =>
+                        sticker.id === editModal.stickerId
+                          ? {
+                            ...sticker,
+                            style: { ...sticker.style, fontSize: Number(e.target.value) }
                           }
-                        }
-                        : sticker
-                    ));
-                  }}
-                  className="color-picker"
-                />
-              </label>
-            </div>
+                          : sticker
+                      ));
+                    }}
+                    min="24"
+                    max="120"
+                    className="number-input"
+                  />
+                </label>
+              </div>
+            )}
+
+            {(editModal.type === 'text' || editModal.type === 'shape') && (
+              <div className="control-group">
+                <label>
+                  {editModal.type === 'text' ? 'Text Color' : 'Shape Color'}:
+                  <input
+                    type="color"
+                    value={stickers.find(s => s.id === editModal.stickerId)?.style?.color ||
+                      stickers.find(s => s.id === editModal.stickerId)?.style?.backgroundColor ||
+                      '#000000'}
+                    onChange={(e) => {
+                      setStickers(stickers.map(sticker =>
+                        sticker.id === editModal.stickerId
+                          ? {
+                            ...sticker,
+                            style: {
+                              ...sticker.style,
+                              [editModal.type === 'text' ? 'color' : 'backgroundColor']: e.target.value
+                            }
+                          }
+                          : sticker
+                      ));
+                    }}
+                    className="color-picker"
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="modal-buttons">
               <button onClick={() => setEditModal(null)} className="button">Close</button>
@@ -744,14 +771,14 @@ const StickerEditor: React.FC = () => {
                       </button>
                     </>
                   )}
-                  <button
-                    className="edit-button"
-                    onClick={() => setEditModal({ type: 'shape', stickerId: sticker.id })}
-                  >
-                    <Palette size={16} />
-                  </button>
                   {sticker.type === 'shape' && (
                     <>
+                      <button
+                        className="edit-button"
+                        onClick={() => setEditModal({ type: 'shape', stickerId: sticker.id })}
+                      >
+                        <Palette size={16} />
+                      </button>
                       <label className="edit-button">
                         <input
                           type="file"
@@ -762,6 +789,16 @@ const StickerEditor: React.FC = () => {
                         />
                         <ImageIcon size={16} />
                       </label>
+                    </>
+                  )}
+                  {sticker.type === 'emoji' && (
+                    <>
+                      <button
+                        className="edit-button"
+                        onClick={() => setEditModal({ type: 'emoji', stickerId: sticker.id })}
+                      >
+                        <Type size={16} />
+                      </button>
                     </>
                   )}
                 </div>
