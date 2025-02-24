@@ -30,7 +30,7 @@ interface StickerType {
   scale: number;
   width: number;
   height: number;
-  type: 'image' | 'text' | 'shape';
+  type: 'image' | 'text' | 'shape' | 'emoji';
   content: string;
   style?: {
     color?: string;
@@ -148,6 +148,27 @@ const StickerEditor: React.FC = () => {
     setStickers([...stickers, newSticker]);
     setTextInput('');
     setIsModalOpen(false);
+  };
+
+  const addEmojiSticker = (emoji) => {
+
+    const newSticker: StickerType = {
+      id: Math.random().toString(36),
+      x: 100,
+      y: 100,
+      rotation: 0,
+      scale: 1,
+      width: 200,
+      height: 50,
+      type: 'emoji',
+      content: emoji,
+      style: {
+        color: textColor,
+        fontSize: fontSize
+      }
+    };
+
+    setStickers([...stickers, newSticker]);
   };
 
   const addShapeSticker = (shapeType: shapeTypes) => {
@@ -304,6 +325,22 @@ const StickerEditor: React.FC = () => {
                 style: { opacity: sticker.style?.backgroundImage ? 0.5 : 1 }
               })}
             </svg>
+          </div>
+        );
+      case 'emoji':
+        return (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden'
+            }}
+          >
+            {sticker.content}
           </div>
         );
       default:
@@ -536,8 +573,7 @@ const StickerEditor: React.FC = () => {
             <button
               key={index}
               className="emoji-button"
-              // onClick={() => addTextSticker(emoji)}
-              onClick={() => addShapeSticker('pentagon')}
+              onClick={() => addEmojiSticker(emoji)}
             >
               {emoji}
             </button>
